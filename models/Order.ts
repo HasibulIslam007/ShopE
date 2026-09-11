@@ -1,0 +1,3 @@
+import mongoose, { Schema } from "mongoose";
+const OrderSchema = new Schema({ userId:{type:Schema.Types.ObjectId,ref:"User",required:true}, items:[{productId:{type:Schema.Types.ObjectId,ref:"Product"},name:String,quantity:Number,priceAtPurchase:Number}], totalAmount:{type:Number,min:0,required:true}, status:{type:String,enum:["pending","shipped","delivered"],default:"pending"}, paymentStatus:{type:String,enum:["pending","paid","failed"],default:"pending"}, stripeSessionId:String }, {timestamps:true});
+export default mongoose.models.Order || mongoose.model("Order", OrderSchema);
