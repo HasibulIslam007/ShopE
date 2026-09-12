@@ -1,7 +1,12 @@
 "use client";
 import Link from "next/link";
+import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 
-export default function Error({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN) Sentry.captureException(error);
+  }, [error]);
   return (
     <main className="mx-auto grid max-w-5xl place-items-center px-6 py-32 md:px-10">
       <div className="text-center">

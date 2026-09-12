@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db";
 import { apiError, isValidObjectId } from "@/lib/api-response";
 import { requireUser } from "@/lib/guards";
 import { initializeSslPayment, sslConfigured } from "@/lib/sslcommerz";
+import { expireStaleOrders } from "@/lib/orders";
 import Product from "@/models/Product";
 import Order from "@/models/Order";
 
@@ -25,6 +26,8 @@ export async function POST(request: Request) {
   if (!process.env.MONGODB_URI || !sslConfigured()) return apiError("Payment service is not configured", 503);
   const parsed = schema.safeParse(await request.json()); if (!parsed.success) return apiError(parsed.error.issues[0].message);
   try {
+    // Housekeeping: mark abandoned pending orders (>60 min old) as cancelled.
+    await expireStaleOrders();
     await connectDB();
     const objectIds = parsed.data.items.filter((item) => isValidObjectId(item.productId)).map((item) => item.productId);
     const slugs = parsed.data.items.filter((item) => !isValidObjectId(item.productId)).map((item) => item.productId);

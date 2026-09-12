@@ -42,6 +42,9 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: "Current password is incorrect" }, { status: 403 });
       }
       user.passwordHash = await bcrypt.hash(newPassword, 12);
+      // Session invalidation: bump tokenVersion so every JWT issued under the
+      // OLD password becomes invalid immediately — the user must re-login.
+      user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     }
     if (name) user.name = name.trim();
 
