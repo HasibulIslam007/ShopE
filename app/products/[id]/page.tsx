@@ -1,3 +1,65 @@
-"use client";
-import Image from "next/image"; import { notFound } from "next/navigation"; import { useParams } from "next/navigation"; import { products } from "@/lib/products"; import { useCart } from "@/context/CartContext"; import Link from "next/link";
-export default function DetailPage(){const {id}=useParams<{id:string}>(); const product=products.find(p=>p.id===id); const {add}=useCart(); if(!product)return notFound(); return <main className="mx-auto grid max-w-7xl gap-12 px-6 pb-24 pt-10 md:grid-cols-2 md:px-10 md:pt-16"><div className="relative aspect-square overflow-hidden rounded-[2.5rem]" style={{backgroundColor:product.color}}><Image src={product.image} alt={product.name} fill className="object-cover" priority sizes="(max-width: 768px) 100vw, 50vw"/></div><div className="flex flex-col justify-center"><Link href="/products" className="mb-12 text-sm text-ink/55">← Back to collection</Link><p className="text-xs font-bold uppercase tracking-[.2em] text-coral">{product.category}</p><h1 className="mt-4 text-5xl font-black tracking-[-.07em] md:text-7xl">{product.name}</h1><p className="mt-5 text-2xl">${product.price}</p><p className="mt-8 max-w-md text-lg leading-8 text-ink/65">{product.description}</p><button onClick={()=>add(product)} className="mt-10 w-fit rounded-full bg-ink px-8 py-4 font-bold text-white hover:bg-coral">Add to bag <span className="ml-8">↗</span></button><div className="mt-12 border-t border-ink/15 pt-5 text-sm text-ink/60"><p>Free shipping over $100</p><p className="mt-2">Thoughtfully packed and easy returns</p></div></div></main>}
+import { notFound } from "next/navigation";
+import { connectDB } from "@/lib/db";
+import { ensureCatalogSeeded } from "@/lib/catalog";
+import { isValidObjectId } from "@/lib/api-response";
+import Product from "@/models/Product";
+import { ProductDetailClient } from "./ProductDetailClient";
+
+type ProductWithCategory = {
+  _id: { toString: () => string };
+  slug: string;
+  name: string;
+  categoryId: { name: string; slug: string } | null;
+  price: number;
+  imagePath: string;
+  description: string;
+  isFeatured: boolean;
+};
+
+export async function generateStaticParams() {
+  if (!process.env.MONGODB_URI) return [];
+  await connectDB();
+  await ensureCatalogSeeded();
+  const products = await Product.find({}).select("slug").lean();
+  return products.map((p) => ({ id: p.slug }));
+}
+
+export default async function DetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
+  if (!process.env.MONGODB_URI) {
+    return (
+      <main className="mx-auto max-w-7xl px-6 pb-24 pt-12 md:px-10">
+        <div className="rounded-[2rem] bg-amber-50 p-8 text-center">
+          <p className="text-amber-800">Database not configured. Please set MONGODB_URI in .env.local</p>
+        </div>
+      </main>
+    );
+  }
+
+  await connectDB();
+  await ensureCatalogSeeded();
+
+  const product = (await Product.findOne(
+    isValidObjectId(id) ? { $or: [{ slug: id }, { _id: id }] } : { slug: id },
+  ).populate("categoryId", "name slug").lean()) as unknown as ProductWithCategory | null;
+
+  if (!product) {
+    notFound();
+  }
+
+  return (
+    <ProductDetailClient
+      product={{
+        id: product.slug,
+        name: product.name,
+        category: product.categoryId?.name || "Unknown",
+        price: product.price,
+        color: "#f6f5ef",
+        image: product.imagePath,
+        description: product.description,
+        isNew: product.isFeatured,
+      }}
+    />
+  );
+}
